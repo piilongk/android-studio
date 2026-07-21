@@ -1,0 +1,42 @@
+name: Build Android Agent APK
+
+on:
+  push:
+    branches:
+      - '**' # Chạy khi push lên bất kỳ branch nào
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: Generate Gradle Wrapper
+        run: |
+          cd android-agent
+          gradle wrapper
+
+      - name: Grant Execute Permission for Gradlew
+        run: |
+          cd android-agent
+          chmod +x gradlew
+
+      - name: Build Debug APK
+        run: |
+          cd android-agent
+          ./gradlew assembleDebug
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: android-agent-apk
+          path: android-agent/app/build/outputs/apk/debug/app-debug.apk

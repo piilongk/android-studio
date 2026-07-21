@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="24dp"
+    android:gravity="center_horizontal">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="No-Code Android Automation Agent"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="32dp" />
+
+    <TextView
+        android:id="@+id/tvAccessibilityStatus"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Accessibility Service: Disabled"
+        android:textColor="#FF0000"
+        android:textSize="16sp"
+        android:layout_marginBottom="16dp" />
+
+    <Button
+        android:id="@+id/btnEnableAccessibility"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Enable Accessibility Service"
+        android:layout_marginBottom="24dp" />
+
+    <TextView
+        android:id="@+id/tvMirrorStatus"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Screen Stream: Inactive"
+        android:textColor="#FF0000"
+        android:textSize="16sp"
+        android:layout_marginBottom="16dp" />
+
+    <Button
+        android:id="@+id/btnStartMirror"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Start Screen Mirroring"
+        android:layout_marginBottom="24dp" />
+
+    <TextView
+        android:id="@+id/tvShizukuStatus"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Shizuku: Not Connected"
+        android:textColor="#888888"
+        android:textSize="14sp"
+        android:layout_marginBottom="16dp" />
+
+</LinearLayout>
