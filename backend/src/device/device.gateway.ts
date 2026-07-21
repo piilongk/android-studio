@@ -78,7 +78,7 @@ export class DeviceGateway implements OnGatewayConnection, OnGatewayDisconnect {
     if (!this.monitors.has(deviceId)) {
       this.monitors.set(deviceId, new Set());
     }
-    this.monitors.get(deviceId).add(client);
+    this.monitors.get(deviceId)!.add(client);
     this.logger.log(`Web client ${client.id} subscribed to device: ${deviceId}`);
 
     // If agent is online, notify the subscriber
@@ -93,6 +93,20 @@ export class DeviceGateway implements OnGatewayConnection, OnGatewayDisconnect {
     if (resolver) {
       resolver(data);
       this.pendingCommands.delete(messageId);
+    }
+  }
+
+  @SubscribeMessage('videoFrame')
+  handleVideoFrame(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { deviceId: string; frame: string },
+  ) {
+    const { deviceId, frame } = data;
+    const monitors = this.monitors.get(deviceId);
+    if (monitors) {
+      for (const monitor of monitors) {
+        monitor.emit('videoFrame', frame);
+      }
     }
   }
 

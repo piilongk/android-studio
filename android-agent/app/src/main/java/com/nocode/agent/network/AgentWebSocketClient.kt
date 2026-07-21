@@ -102,6 +102,17 @@ class AgentWebSocketClient(private val url: String) {
             }
         } catch (e: Exception) {
             socket?.emit("message", text)
+    }
+
+    fun sendVideoFrame(base64Frame: String) {
+        try {
+            val json = JSONObject().apply {
+                put("deviceId", android.os.Build.MODEL + "_" + android.os.Build.ID)
+                put("frame", base64Frame)
+            }
+            socket?.emit("videoFrame", json)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to send video frame: ${e.message}")
         }
     }
 

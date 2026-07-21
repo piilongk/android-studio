@@ -1,26 +1,26 @@
 package com.nocode.agent.mirror
 
+import android.annotation.SuppressLint
 import android.app.*
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.PixelFormat
 import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay
-import android.media.MediaCodec
-import android.media.MediaCodecInfo
-import android.media.MediaFormat
+import android.media.Image
+import android.media.ImageReader
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.IBinder
+import android.util.Base64
 import android.util.DisplayMetrics
 import android.util.Log
 import android.view.WindowManager
 import androidx.core.app.NotificationCompat
 import com.nocode.agent.AutomationAccessibilityService
-import org.json.JSONObject
-import java.io.OutputStream
-import java.net.Socket
-import java.nio.ByteBuffer
+import java.io.ByteArrayOutputStream
 import kotlin.concurrent.thread
 
 class ScreenMirrorService : Service() {
@@ -30,55 +30,57 @@ class ScreenMirrorService : Service() {
     private val NOTIFICATION_ID = 2
 
     private var mediaProjection: MediaProjection? = null
-    private var mediaCodec: MediaCodec? = null
     private var virtualDisplay: VirtualDisplay? = null
+    private var imageReader: ImageReader? = null
     private var isStreaming = false
-    private var streamThread: Thread? = null
-    private var socket: Socket? = null
-    private var outputStream: OutputStream? = null
+    private var captureThread: Thread? = null
 
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
     }
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val resultCode = intent?.getIntExtra("resultCode", Activity.RESULT_CANCELED) ?: Activity.RESULT_CANCELED
-        val resultData = intent?.getParcelableExtra<Intent>("resultData")
+    override fun onBind(intent: Intent?): IBinder? {
+        return null
+    }
 
-        if (resultCode == Activity.RESULT_OK && resultData != null) {
-            startForegroundServiceNotification()
-            startScreenCapture(resultCode, resultData)
-        } else {
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == "START_MIRROR") {
+            val resultCode = intent.getIntExtra("resultCode", Activity.RESULT_CANCELED)
+            val resultData = intent.getParcelableExtra<Intent>("resultData")
+            if (resultCode == Activity.RESULT_OK && resultData != null) {
+                startForegroundServiceWithNotification()
+                startScreenCapture(resultCode, resultData)
+            }
+        } else if (intent?.action == "STOP_MIRROR") {
+            stopScreenCapture()
             stopSelf()
         }
-
         return START_NOT_STICKY
     }
 
-    override fun onBind(intent: Intent?): IBinder? = null
-
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val serviceChannel = NotificationChannel(
+            val channel = NotificationChannel(
                 CHANNEL_ID,
-                "Screen Mirroring Service Channel",
+                "Screen Mirroring Service",
                 NotificationManager.IMPORTANCE_LOW
             )
             val manager = getSystemService(NotificationManager::class.java)
-            manager.createNotificationChannel(serviceChannel)
+            manager?.createNotificationChannel(channel)
         }
     }
 
-    private fun startForegroundServiceNotification() {
+    private fun startForegroundServiceWithNotification() {
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Screen Mirroring Active")
-            .setContentText("Streaming screen to Automation Control Center...")
+            .setContentText("Your screen is being streamed to the No-Code Studio")
             .setSmallIcon(android.R.drawable.ic_menu_camera)
             .build()
         startForeground(NOTIFICATION_ID, notification)
     }
 
+    @SuppressLint("WrongConstant")
     private fun startScreenCapture(resultCode: Int, resultData: Intent) {
         val projectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
         mediaProjection = projectionManager.getMediaProjection(resultCode, resultData)
@@ -86,95 +88,74 @@ class ScreenMirrorService : Service() {
         val windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         val metrics = DisplayMetrics()
         windowManager.defaultDisplay.getRealMetrics(metrics)
-        val width = 720 // Lower resolution to scale network bandwidth
+        val width = 720
         val height = 1280
         val dpi = metrics.densityDpi
 
-        // Configure H.264 Encoder
-        val format = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, width, height)
-        format.setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
-        format.setInteger(MediaFormat.KEY_BIT_RATE, 1000000) // 1 Mbps
-        format.setInteger(MediaFormat.KEY_FRAME_RATE, 30)
-        format.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1)
-
-        mediaCodec = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC)
-        mediaCodec?.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
-        val inputSurface = mediaCodec?.createInputSurface()
+        // Setup ImageReader for JPEG capture
+        imageReader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2)
 
         virtualDisplay = mediaProjection?.createVirtualDisplay(
             "ScreenMirror",
             width, height, dpi,
             DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
-            inputSurface, null, null
+            imageReader?.surface, null, null
         )
 
-        mediaCodec?.start()
         isStreaming = true
+        var lastCaptureTime = 0L
 
-        streamThread = thread(start = true) {
+        imageReader?.setOnImageAvailableListener({ reader ->
+            if (!isStreaming) return@setOnImageAvailableListener
+            
+            // Limit FPS to around 10-15 frames per second for Web WebSocket
+            val currentTime = System.currentTimeMillis()
+            if (currentTime - lastCaptureTime < 100) {
+                val img = reader.acquireLatestImage()
+                img?.close()
+                return@setOnImageAvailableListener
+            }
+            lastCaptureTime = currentTime
+
+            var image: Image? = null
             try {
-                // Connect back to Server Streaming Gateway (Port 3001)
-                socket = Socket("127.0.0.1", 3001)
-                outputStream = socket?.getOutputStream()
+                image = reader.acquireLatestImage()
+                if (image != null) {
+                    val planes = image.planes
+                    val buffer = planes[0].buffer
+                    val pixelStride = planes[0].pixelStride
+                    val rowStride = planes[0].rowStride
+                    val rowPadding = rowStride - pixelStride * width
 
-                // Send initial device meta-data
-                val header = JSONObject().apply {
-                    put("deviceId", Build.MODEL + "_" + Build.ID)
-                    put("width", width)
-                    put("height", height)
-                }
-                outputStream?.write((header.toString() + "\n").toByteArray())
-                outputStream?.flush()
+                    val bitmapWidth = width + rowPadding / pixelStride
+                    val bitmap = Bitmap.createBitmap(bitmapWidth, height, Bitmap.Config.ARGB_8888)
+                    bitmap.copyPixelsFromBuffer(buffer)
 
-                val bufferInfo = MediaCodec.BufferInfo()
-                while (isStreaming) {
-                    val outputBufferIndex = mediaCodec?.dequeueOutputBuffer(bufferInfo, 10000) ?: -1
-                    if (outputBufferIndex >= 0) {
-                        val outputBuffer = mediaCodec?.getOutputBuffer(outputBufferIndex)
-                        if (outputBuffer != null) {
-                            outputBuffer.position(bufferInfo.offset)
-                            outputBuffer.limit(bufferInfo.offset + bufferInfo.size)
+                    // Crop out the padding
+                    val croppedBitmap = Bitmap.createBitmap(bitmap, 0, 0, width, height)
 
-                            val bytes = ByteArray(bufferInfo.size)
-                            outputBuffer.get(bytes)
+                    // Compress to JPEG
+                    val out = ByteArrayOutputStream()
+                    croppedBitmap.compress(Bitmap.CompressFormat.JPEG, 40, out)
+                    val base64 = Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP)
 
-                            // Send raw Annex-B NAL packet to socket
-                            outputStream?.write(bytes)
-                            outputStream?.flush()
-                        }
-                        mediaCodec?.releaseOutputBuffer(outputBufferIndex, false)
-                    }
+                    // Send via Socket.IO
+                    val service = AutomationAccessibilityService.instance
+                    service?.socketClient?.sendVideoFrame(base64)
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Streaming connection error: ${e.message}")
+                Log.e(TAG, "Error processing frame: ${e.message}")
             } finally {
-                stopScreenCapture()
+                image?.close()
             }
-        }
+        }, null)
     }
 
     private fun stopScreenCapture() {
-        isStreaming = false
-        try {
-            outputStream?.close()
-            socket?.close()
-        } catch (e: Exception) {}
-
-        virtualDisplay?.release()
-        virtualDisplay = null
-
-        mediaCodec?.stop()
-        mediaCodec?.release()
-        mediaCodec = null
-
-        mediaProjection?.stop()
-        mediaProjection = null
-
         Log.d(TAG, "Screen capturing stopped.")
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        stopScreenCapture()
+        isStreaming = false
+        virtualDisplay?.release()
+        imageReader?.close()
+        mediaProjection?.stop()
     }
 }
