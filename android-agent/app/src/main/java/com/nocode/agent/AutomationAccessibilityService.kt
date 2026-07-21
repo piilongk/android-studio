@@ -15,7 +15,7 @@ import java.io.IOException
 
 class AutomationAccessibilityService : AccessibilityService() {
 
-    private var socketClient: AgentWebSocketClient? = null
+    var socketClient: AgentWebSocketClient? = null
     private val TAG = "AutomationService"
 
     companion object {

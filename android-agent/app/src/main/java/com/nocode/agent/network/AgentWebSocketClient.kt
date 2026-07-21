@@ -102,6 +102,7 @@ class AgentWebSocketClient(private val url: String) {
             }
         } catch (e: Exception) {
             socket?.emit("message", text)
+        }
     }
 
     fun sendVideoFrame(base64Frame: String) {
