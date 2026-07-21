@@ -20,8 +20,14 @@ jobs:
           java-version: '17'
           cache: 'gradle'
 
-      - name: Generate Gradle Wrapper
+      - name: Install Gradle and Generate Wrapper
         run: |
+          # Tải bản Gradle chính thức rút gọn để sinh Wrapper
+          wget -q https://services.gradle.org/distributions/gradle-8.2-bin.zip
+          unzip -q gradle-8.2-bin.zip
+          export PATH=$PWD/gradle-8.2/bin:$PATH
+          
+          # Di chuyển vào thư mục agent và sinh Wrapper
           cd android-agent
           gradle wrapper
 
