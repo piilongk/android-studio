@@ -43,6 +43,7 @@ dependencies {
 
     // Network & WebSockets
     implementation("com.squareup.okhttp3:okhttp:4.11.0")
+    implementation("io.socket:socket.io-client:2.0.1")
 
     // Google ML Kit OCR
     implementation("com.google.android.gms:play-services-mlkit-text-recognition:19.0.0")
