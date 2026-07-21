@@ -10,7 +10,7 @@ import android.widget.Button
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import com.nocode.agent.mirror.ScreenMirrorService
-import dev.rikka.shizuku.Shizuku
+import rikka.shizuku.Shizuku
 
 class MainActivity : AppCompatActivity() {
 
@@ -20,7 +20,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvShizukuStatus: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState: Bundle?)
+        super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
         tvAccessibilityStatus = findViewById(R.id.tvAccessibilityStatus)

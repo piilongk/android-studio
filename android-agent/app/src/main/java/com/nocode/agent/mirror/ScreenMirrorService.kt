@@ -17,6 +17,7 @@ import android.util.Log
 import android.view.WindowManager
 import androidx.core.app.NotificationCompat
 import com.nocode.agent.AutomationAccessibilityService
+import org.json.JSONObject
 import java.io.OutputStream
 import java.net.Socket
 import java.nio.ByteBuffer
