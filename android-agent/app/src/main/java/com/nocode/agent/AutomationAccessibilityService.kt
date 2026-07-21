@@ -28,8 +28,8 @@ class AutomationAccessibilityService : AccessibilityService() {
         instance = this
         Log.d(TAG, "Accessibility Service Connected")
         // Initialize WebSocket connection to Backend Orchestrator
-        // Connecting to localhost dev server by default, can be updated via UI
-        socketClient = AgentWebSocketClient("ws://10.0.2.2:3000/device")
+        // Connecting to local PC server using adb reverse port forwarding
+        socketClient = AgentWebSocketClient("ws://127.0.0.1:3000/device")
         socketClient?.connect()
     }
 

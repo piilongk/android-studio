@@ -114,7 +114,7 @@ class ScreenMirrorService : Service() {
         streamThread = thread(start = true) {
             try {
                 // Connect back to Server Streaming Gateway (Port 3001)
-                socket = Socket("10.0.2.2", 3001)
+                socket = Socket("127.0.0.1", 3001)
                 outputStream = socket?.getOutputStream()
 
                 // Send initial device meta-data
